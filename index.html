@@ -1,0 +1,1468 @@
+
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — Abdoul Aziz</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="dashboard.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
+
+</head>
+<body>
+<div class="wrap">
+
+<!-- ══════════════════════════════════════
+     NAV TABS
+══════════════════════════════════════ -->
+<div class="nav-tabs fi d1">
+  <button class="nav-tab active" onclick="switchPage('dashboard')">🏠 Dashboard</button>
+  <button class="nav-tab" onclick="switchPage('perf')">📈 Performances</button>
+  <button class="nav-tab" onclick="switchPage('finance')">💰 Finance</button>
+  <div style="display:flex;align-items:center;gap:8px;margin-left:auto;padding:0 4px;">
+    <span class="theme-label" id="theme-lbl">🌙</span>
+    <div class="theme-toggle" onclick="toggleTheme()" title="Changer le thème"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     PAGE: DASHBOARD
+══════════════════════════════════════ -->
+<div class="page active" id="page-dashboard">
+
+<!-- HEADER -->
+<header class="fi d1">
+  <div class="hgrid">
+    <div>
+      <div class="sys-tag">
+        Dashboard · Privé
+        <span class="sync-status" id="sync-status"><span class="sync-dot" id="sync-dot"></span><span id="sync-txt">Local</span></span>
+      </div>
+      <div class="hname">Abdoul <span>Aziz</span></div>
+      <div class="hdate" id="hdate">—</div>
+      <div class="hquote" id="hquote">—</div>
+    </div>
+    <div class="hright">
+      <div class="clock-box">
+        <div class="clock-time"><span id="clk-h">00</span>:<span id="clk-m">00</span><span class="clock-secs">:<span id="clk-s">00</span></span></div>
+        <div class="clock-mini" id="clk-date">—</div>
+        <div class="clock-day" id="clk-day">—</div>
+      </div>
+      <div class="hbtns">
+        <button class="btn btn-green btn-sm" onclick="exportExcel()">⬇ Excel</button>
+        <button class="btn btn-orange btn-sm" onclick="pinGate(resetDay)">↺ Reset</button>
+        <button class="btn btn-purple btn-sm" onclick="pinGate(()=>openModal('m-change-pin'))">🔐 PIN</button>
+        <button class="btn btn-blue btn-sm" onclick="pinGate(()=>openModal('m-firebase'))">☁ Cloud</button>
+        <button class="btn btn-yellow btn-sm" onclick="openModal('m-notif-set')">🔔 Notifs</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- STATS -->
+<div class="st fi d2">📊 Aujourd'hui</div>
+<div class="stats-row fi d2">
+  <div class="ring-wrap">
+    <svg class="ring" width="70" height="70" viewBox="0 0 70 70">
+      <circle cx="35" cy="35" r="29" fill="none" stroke="rgba(0,255,180,.1)" stroke-width="7"/>
+      <circle cx="35" cy="35" r="29" fill="none" stroke="#00ffb3" stroke-width="7" stroke-linecap="round"
+        stroke-dasharray="182" id="ring-c" stroke-dashoffset="182"
+        style="filter:drop-shadow(0 0 4px rgba(0,255,180,.5));transition:stroke-dashoffset .8s ease"/>
+    </svg>
+    <div class="rpct" id="ring-pct">0%</div>
+    <div class="rlbl">Journée</div>
+  </div>
+  <div class="stat-card hl"><div class="sv" style="color:var(--green)" id="s-done">0</div><div class="sk">Faites</div><div class="ss" id="s-done-sub">—</div></div>
+  <div class="stat-card"><div class="sv" style="color:var(--yellow)" id="s-streak">0</div><div class="sk">🔥 Streak</div><div class="ss" id="s-streak-sub">—</div></div>
+  <div class="stat-card"><div class="sv" style="color:var(--orange)" id="s-month">0</div><div class="sk">Jours actifs</div><div class="ss" id="s-month-sub">—</div></div>
+</div>
+
+<!-- BADGES -->
+<div class="st fi d2">🏆 Badges & Récompenses</div>
+<div class="badges-row fi d2" id="badges-row"></div>
+
+<!-- TASKS -->
+<div class="fi d3">
+  <div class="sec-hdr">
+    <div class="st">✅ Tâches du jour</div>
+    <button class="btn btn-green btn-sm" onclick="pinGate(openAddTask)">+ Ajouter</button>
+  </div>
+  <div class="tasks-grid" id="tasks-grid"></div>
+</div>
+
+<!-- PROJECTS -->
+<div class="fi d4">
+  <div class="sec-hdr">
+    <div class="st">💼 Projets d'entreprise</div>
+    <button class="btn btn-blue btn-sm" onclick="pinGate(openAddProj)">+ Nouveau</button>
+  </div>
+  <div class="projects-grid" id="projects-grid"></div>
+</div>
+
+<!-- CERTIFS -->
+<div class="fi d5">
+  <div class="sec-hdr">
+    <div class="st">🎓 Certifications</div>
+    <button class="btn btn-purple btn-sm" onclick="pinGate(openManageCertif)">⚙ Gérer</button>
+  </div>
+  <div class="certif-cards" id="certif-cards"></div>
+</div>
+
+<!-- HEATMAP -->
+<div class="st fi d6">📅 Cette semaine</div>
+<div class="week-heatmap fi d6" id="week-heatmap"></div>
+
+<!-- CALENDAR -->
+<div class="st fi d7">🗓 Calendrier mensuel</div>
+<div class="month-nav fi d7">
+  <button class="nav-btn" onclick="prevMonth()">‹</button>
+  <span id="month-label">—</span>
+  <button class="nav-btn" onclick="nextMonth()">›</button>
+</div>
+<div class="cal-grid fi d7" id="cal-grid"></div>
+
+<!-- EXPORT -->
+<div class="st fi d8">📤 Export</div>
+<div class="export-box fi d8">
+  <p><strong>Rapport Excel</strong> — tâches, certifications, projets, finances.</p>
+  <div style="display:flex;gap:7px;flex-wrap:wrap;">
+    <button class="btn btn-green" onclick="exportExcel()">⬇ Ce mois</button>
+    <button class="btn btn-orange" onclick="exportAllExcel()">⬇ Historique</button>
+  </div>
+</div>
+
+<div class="footer">بِسْمِ اللَّهِ · ABDOUL AZIZ · IN SHA ALLAH · WORK IN SILENCE, LET SUCCESS MAKE THE NOISE</div>
+</div>
+
+<!-- ══════════════════════════════════════
+     PAGE: PERFORMANCES
+══════════════════════════════════════ -->
+<div class="page" id="page-perf">
+  <div class="st" style="margin-top:8px">📈 Performances globales</div>
+  <div class="perf-stats" id="perf-stats"></div>
+  <div class="perf-grid">
+    <div class="chart-card"><h4>📅 Tâches / Semaine</h4><canvas id="chart-tasks"></canvas></div>
+    <div class="chart-card"><h4>⏱ Heures / Semaine</h4><canvas id="chart-hours"></canvas></div>
+    <div class="chart-card"><h4>📆 Jours actifs / Mois</h4><canvas id="chart-days"></canvas></div>
+    <div class="chart-card"><h4>🎓 Progression Certifs</h4><canvas id="chart-certifs"></canvas></div>
+  </div>
+  <div class="st">🔥 Historique des performances</div>
+  <div id="perf-history" style="display:flex;flex-direction:column;gap:6px;margin-bottom:18px;"></div>
+</div>
+
+<!-- ══════════════════════════════════════
+     PAGE: FINANCE
+══════════════════════════════════════ -->
+<div class="page" id="page-finance">
+  <div class="st" style="margin-top:8px">💰 Gestion financière des projets</div>
+  <div class="finance-summary" id="finance-summary"></div>
+  <div class="sec-hdr">
+    <div class="st">📋 Détail par projet</div>
+    <button class="btn btn-green btn-sm" onclick="pinGate(openAddProj)">+ Nouveau projet</button>
+  </div>
+  <div class="fin-list" id="fin-list"></div>
+</div>
+
+</div><!-- /wrap -->
+
+<!-- ══════════════════════════════════════
+     MODALS
+══════════════════════════════════════ -->
+
+<!-- ADD/EDIT TASK -->
+<div class="modal-bg" id="m-task" onclick="closeBg(event,'m-task')">
+  <div class="modal">
+    <h3 id="mt-title">+ Nouvelle tâche</h3>
+    <div class="msub">Protégé par PIN</div>
+    <input type="hidden" id="mt-id">
+    <div class="field"><label>Nom *</label><input type="text" id="mt-name" placeholder="ex: Lecture, Sport..." maxlength="60"></div>
+    <div class="field"><label>Description</label><input type="text" id="mt-desc" placeholder="ex: Chapitres 3 et 4" maxlength="80"></div>
+    <div class="frow2">
+      <div class="field"><label>Horaire (pour notif)</label><input type="text" id="mt-time" placeholder="08:00–09:30"></div>
+      <div class="field"><label>Durée (minutes)</label><input type="number" id="mt-hours" value="60" min="5" max="480" step="5"></div>
+    </div>
+    <div class="field">
+      <label>Couleur</label>
+      <select id="mt-color">
+        <option value="#00ffb3">🟢 Vert — Formation</option>
+        <option value="#40c8ff">🔵 Bleu — Lecture</option>
+        <option value="#fbbf24">🟡 Jaune — Révision</option>
+        <option value="#c084fc">🟣 Violet — Projet</option>
+        <option value="#f472b6">🩷 Rose — Sport</option>
+        <option value="#ff7043">🟠 Orange — Labs</option>
+        <option value="#94a3b8">⚪ Gris — Autre</option>
+      </select>
+    </div>
+    <div class="field"><label>Icône</label><input type="text" id="mt-icon" placeholder="📌" maxlength="4" value="📌"></div>
+    <div class="mfoot">
+      <button class="btn btn-green btn-full" onclick="saveTask()">✓ Sauvegarder</button>
+      <button class="btn btn-orange btn-full" onclick="closeModal('m-task')">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD/EDIT PROJECT -->
+<div class="modal-bg" id="m-proj" onclick="closeBg(event,'m-proj')">
+  <div class="modal">
+    <h3 id="mp-title">💼 Nouveau projet</h3>
+    <div class="msub">Projet professionnel avec finances et sous-tâches</div>
+    <input type="hidden" id="mp-id">
+    <div class="field"><label>Nom du projet *</label><input type="text" id="mp-name" maxlength="60" placeholder="ex: Refonte site e-commerce..."></div>
+    <div class="field"><label>Client / Entreprise</label><input type="text" id="mp-client" maxlength="50"></div>
+    <div class="field"><label>Description détaillée</label><textarea id="mp-desc" placeholder="Objectifs, technologies, livrables..."></textarea></div>
+    <div class="frow2">
+      <div class="field">
+        <label>Statut</label>
+        <select id="mp-status">
+          <option value="todo">⬜ À faire</option>
+          <option value="inprogress">🟡 En cours</option>
+          <option value="done">✅ Terminé</option>
+          <option value="paused">🔴 En pause</option>
+        </select>
+      </div>
+      <div class="field"><label>Deadline</label><input type="date" id="mp-dl"></div>
+    </div>
+    <div class="frow2">
+      <div class="field"><label>Icône</label><input type="text" id="mp-icon" value="💼" maxlength="4"></div>
+      <div class="field">
+        <label>Couleur accent</label>
+        <select id="mp-color">
+          <option value="#40c8ff">🔵 Bleu</option><option value="#00ffb3">🟢 Vert</option>
+          <option value="#c084fc">🟣 Violet</option><option value="#fbbf24">🟡 Jaune</option>
+          <option value="#f472b6">🩷 Rose</option><option value="#ff7043">🟠 Orange</option>
+        </select>
+      </div>
+    </div>
+    <div style="font-size:9px;color:var(--yellow);letter-spacing:2px;margin-bottom:10px;">💰 FINANCES (FCFA)</div>
+    <div class="frow3">
+      <div class="field"><label>Investissement</label><input type="number" id="mp-invest" placeholder="0" min="0"></div>
+      <div class="field"><label>Revenu</label><input type="number" id="mp-revenue" placeholder="0" min="0"></div>
+      <div class="field"><label>Dépenses</label><input type="number" id="mp-expenses" placeholder="0" min="0"></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-blue btn-full" onclick="saveProject()">✓ Sauvegarder</button>
+      <button class="btn btn-orange btn-full" onclick="closeModal('m-proj')">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- CERTIFS -->
+<div class="modal-bg" id="m-certif" onclick="closeBg(event,'m-certif')">
+  <div class="modal">
+    <h3>⚙ Certifications</h3>
+    <div class="msub">Gérer, terminer ou ajouter</div>
+    <div id="cm-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;"></div>
+    <hr style="border:none;border-top:1px solid var(--border2);margin-bottom:13px;">
+    <div style="font-size:9px;font-weight:700;color:var(--purple);margin-bottom:10px;letter-spacing:2px;">+ NOUVELLE CERTIFICATION</div>
+    <div class="field"><label>Nom *</label><input type="text" id="nc-name" placeholder="ex: AWS Cloud Practitioner"></div>
+    <div class="frow2">
+      <div class="field"><label>Icône</label><input type="text" id="nc-icon" value="📚" maxlength="4"></div>
+      <div class="field"><label>Durée (mois)</label><input type="number" id="nc-months" value="3" min="1" max="24"></div>
+    </div>
+    <div class="field"><label>Plateforme</label><input type="text" id="nc-platform" placeholder="Udemy, Coursera..."></div>
+    <div class="field">
+      <label>Couleur</label>
+      <select id="nc-color">
+        <option value="#00ffb3">🟢</option><option value="#40c8ff">🔵</option>
+        <option value="#fbbf24">🟡</option><option value="#c084fc">🟣</option>
+        <option value="#f472b6">🩷</option><option value="#ff7043">🟠</option>
+      </select>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-purple btn-full" onclick="addCertif()">+ Ajouter</button>
+      <button class="btn btn-orange btn-full" onclick="closeModal('m-certif')">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- CHANGE PIN -->
+<div class="modal-bg" id="m-change-pin" onclick="closeBg(event,'m-change-pin')">
+  <div class="modal">
+    <h3>🔐 Changer le PIN</h3>
+    <div class="msub">Le PIN protège toutes les modifications</div>
+    <div class="field"><label>Nouveau PIN (4 chiffres) *</label><input type="password" id="np-new" maxlength="4" placeholder="····" inputmode="numeric"></div>
+    <div class="field"><label>Confirmer</label><input type="password" id="np-conf" maxlength="4" placeholder="····" inputmode="numeric"></div>
+    <div class="mfoot">
+      <button class="btn btn-green btn-full" onclick="changePin()">✓ Changer</button>
+      <button class="btn btn-orange btn-full" onclick="closeModal('m-change-pin')">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- FIREBASE CONFIG -->
+<div class="modal-bg" id="m-firebase" onclick="closeBg(event,'m-firebase')">
+  <div class="modal">
+    <h3>☁ Synchronisation Cloud</h3>
+    <div class="msub">Firebase Firestore — vos données synchronisées partout</div>
+    <div style="background:rgba(64,200,255,.06);border:1px solid rgba(64,200,255,.2);border-radius:8px;padding:12px;margin-bottom:14px;font-size:10px;color:var(--muted2);line-height:1.7;">
+      1. Créez un projet sur <strong style="color:var(--blue)">firebase.google.com</strong><br>
+      2. Activez <strong>Firestore Database</strong><br>
+      3. Dans les paramètres d'app web, copiez votre config&nbsp;: API Key, Project ID, App&nbsp;ID, Messaging Sender ID<br>
+      4. Si vous souhaitez des notifications hors-navigation, fournissez la clé VAPID publique ici (optionnel)<br>
+      5. Réglez les règles Firestore en "test mode" pour commencer
+    </div>
+    <div class="field"><label>API Key</label><input type="text" id="fb-apikey" placeholder="AIzaSy..."></div>
+    <div class="field"><label>Project ID</label><input type="text" id="fb-projectid" placeholder="mon-projet-abc"></div>
+    <div class="field"><label>App ID</label><input type="text" id="fb-appid" placeholder="1:123456:web:abc..."></div>
+    <div class="field"><label>Messaging Sender ID</label><input type="text" id="fb-senderid" placeholder="1234567890"></div>
+    <div class="field"><label>VAPID Key (publique)</label><input type="text" id="fb-vapid" placeholder="BEl..."></div>
+    <div id="fb-status" style="font-size:9px;color:var(--muted2);margin-bottom:10px;min-height:14px;"></div>
+    <div class="mfoot">
+      <button class="btn btn-blue btn-full" onclick="initFirebase()">☁ Connecter</button>
+      <button class="btn btn-green btn-full" onclick="syncToCloud()">⬆ Sauvegarder sur Cloud</button>
+      <button class="btn btn-purple btn-full" onclick="syncFromCloud()">⬇ Restaurer depuis Cloud</button>
+      <button class="btn btn-orange btn-full" onclick="closeModal('m-firebase')">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- NOTIFICATIONS SETTINGS -->
+<div class="modal-bg" id="m-notif-set" onclick="closeBg(event,'m-notif-set')">
+  <div class="modal">
+    <h3>🔔 Rappels automatiques</h3>
+    <div class="msub">Notifications basées sur les horaires de tes tâches</div>
+    <div id="notif-perm-banner" style="display:none;background:rgba(255,112,67,.06);border:1px solid rgba(255,112,67,.3);border-radius:8px;padding:10px;margin-bottom:12px;font-size:10px;color:var(--orange);">
+      ⚠ Les notifications sont bloquées. Cliquez sur l'icône 🔒 dans la barre d'adresse pour les autoriser.
+    </div>
+    <div id="push-status" style="font-size:9px;color:var(--muted2);margin-bottom:10px;min-height:14px;"></div>
+    <div class="notif-list" id="notif-list"></div>
+    <div style="font-size:9px;color:var(--muted2);margin-bottom:12px;line-height:1.6;">
+      💡 Les notifications s'affichent 5 minutes avant l'heure de la tâche.
+      Le navigateur doit rester ouvert.
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-green btn-full" onclick="requestNotifPerm()">🔔 Activer les notifications</button>
+      <button class="btn btn-blue btn-full" onclick="requestPushPermission()">📡 Activer push (alarme hors-ligne)</button>
+      <button class="btn btn-orange btn-full" onclick="closeModal('m-notif-set')">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- DAY DETAIL -->
+<div class="modal-bg" id="m-day" onclick="closeBg(event,'m-day')">
+  <div class="modal">
+    <h3 id="md-title">—</h3>
+    <div class="msub" id="md-sub">—</div>
+    <div id="md-rows"></div>
+    <div class="mfoot"><button class="btn btn-green btn-full" onclick="closeModal('m-day')">Fermer</button></div>
+  </div>
+</div>
+
+<!-- PIN GATE -->
+<div id="pin-gate">
+  <div class="pingate-box">
+    <div class="pingate-title">🔐 Action protégée</div>
+    <div class="pingate-sub" id="pg-sub">Entrez votre PIN</div>
+    <div class="pin-dots">
+      <div class="pin-dot" id="pd0"></div><div class="pin-dot" id="pd1"></div>
+      <div class="pin-dot" id="pd2"></div><div class="pin-dot" id="pd3"></div>
+    </div>
+    <div class="pin-pad">
+      <button class="pin-key" onclick="pk('1')">1</button>
+      <button class="pin-key" onclick="pk('2')">2</button>
+      <button class="pin-key" onclick="pk('3')">3</button>
+      <button class="pin-key" onclick="pk('4')">4</button>
+      <button class="pin-key" onclick="pk('5')">5</button>
+      <button class="pin-key" onclick="pk('6')">6</button>
+      <button class="pin-key" onclick="pk('7')">7</button>
+      <button class="pin-key" onclick="pk('8')">8</button>
+      <button class="pin-key" onclick="pk('9')">9</button>
+      <button class="pin-key" style="visibility:hidden"></button>
+      <button class="pin-key" onclick="pk('0')">0</button>
+      <button class="pin-key kd" onclick="pdel()">⌫</button>
+    </div>
+    <div class="pin-errmsg" id="pin-err"></div>
+    <div class="pin-cancel" onclick="cancelPin()">Annuler</div>
+  </div>
+</div>
+
+<!-- NOTIFICATION BANNER -->
+<div class="notif-banner" id="notif-banner">
+  <span class="nb-close" onclick="hideNotifBanner()">×</span>
+  <div class="nb-title" id="nb-title">⏰ Rappel</div>
+  <div class="nb-msg" id="nb-msg">—</div>
+</div>
+
+<div id="toast"></div>
+
+<!-- ══════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════ -->
+<script>
+// ════════════════════════════════════════
+// CONSTANTS & DEFAULTS
+// ════════════════════════════════════════
+const QUOTES = [
+  "L'excellence n'est pas un acte, c'est une habitude. — Aristote",
+  "La discipline est le pont entre les objectifs et les accomplissements.",
+  "Chaque matin est une nouvelle chance. — Abdoul Aziz",
+  "مَنْ جَدَّ وَجَدَ — Qui persévère, réussit.",
+  "Travaille en silence, laisse le succès faire le bruit.",
+  "In sha Allah, la constance est plus puissante que l'intensité.",
+  "Sois plus dur avec toi-même maintenant pour que la vie soit plus douce plus tard.",
+  "La persévérance est la clé. وَمَن يَتَوَكَّلْ عَلَى اللَّهِ فَهُوَ حَسْبُهُ",
+  "Le succès est la somme de petits efforts répétés jour après jour.",
+  "Ce n'est pas l'intensité mais la régularité qui forge le champion.",
+  "Chaque expert a été débutant. N'abandonne jamais.",
+  "Rêve grand, travaille dur, reste humble.",
+];
+
+const SEED_TASKS = [
+  {id:"cyber",time:"08:00",name:"Cybersécurité",     desc:"Cours + Labs — TryHackMe / HackTheBox",color:"#00ffb3",hours:90, icon:"🔐"},
+  {id:"data", time:"09:30",name:"Data Analysis",     desc:"Cours + Exercices — Kaggle / Python",  color:"#ff7043",hours:90, icon:"📊"},
+  {id:"cloud",time:"11:00",name:"Google Cloud Sec.", desc:"Cours + Quiz — Qwiklabs",              color:"#40c8ff",hours:60, icon:"☁️"},
+  {id:"ai",   time:"13:30",name:"Fullstack IA",      desc:"Projets — Ollama / Llama",             color:"#c084fc",hours:90, icon:"🤖"},
+  {id:"uni",  time:"15:00",name:"Analyse & Proba",   desc:"Révisions + Exercices univ.",          color:"#fbbf24",hours:60, icon:"🎓"},
+  {id:"recap",time:"16:00",name:"Synthèse / Fiches", desc:"Notes du jour · Anki",                 color:"#94a3b8",hours:30, icon:"📝"},
+  {id:"labs", time:"16:30",name:"Labs / Projets",    desc:"Rotation selon le jour",               color:"#f472b6",hours:90, icon:"🔁"},
+];
+
+const SEED_CERTIFS = [
+  {id:"cyber",name:"Cybersécurité",    icon:"🔐",months:6,color:"#00ffb3",platform:"Udemy",  taskId:"cyber",completed:false},
+  {id:"data", name:"Data Analysis",    icon:"📊",months:6,color:"#ff7043",platform:"Udemy",  taskId:"data", completed:false},
+  {id:"cloud",name:"Google Cloud Sec.",icon:"☁️",months:3,color:"#40c8ff",platform:"Udemy",  taskId:"cloud",completed:false},
+  {id:"ai",   name:"Fullstack IA",     icon:"🤖",months:4,color:"#c084fc",platform:"Udemy",  taskId:"ai",   completed:false},
+  {id:"uni",  name:"Analyse & Proba",  icon:"🎓",months:6,color:"#fbbf24",platform:"3ème an",taskId:"uni",  completed:false},
+];
+
+const BADGE_DEFS = [
+  {id:"streak3",  icon:"🔥", name:"3 jours de suite",    desc:"Travailler 3 jours consécutifs",  check:d=>d.streak>=3},
+  {id:"streak7",  icon:"⚡", name:"7 jours de suite",    desc:"Une semaine sans interruption",   check:d=>d.streak>=7},
+  {id:"streak30", icon:"💎", name:"30 jours de suite",   desc:"Un mois complet !",               check:d=>d.streak>=30},
+  {id:"tasks30",  icon:"✅", name:"30 tâches terminées", desc:"Total cumulé de 30 tâches",       check:d=>d.totalTasks>=30},
+  {id:"tasks100", icon:"🏅", name:"100 tâches !",         desc:"Centurion de la productivité",   check:d=>d.totalTasks>=100},
+  {id:"hours10",  icon:"⏱", name:"10h de travail",       desc:"Cumul de 10h ce mois",            check:d=>d.monthMins>=600},
+  {id:"hours100", icon:"🏆", name:"100h de travail",     desc:"100 heures cumulées ce mois !",   check:d=>d.monthMins>=6000},
+  {id:"certif1",  icon:"🎓", name:"1ère certif terminée",desc:"Première certification obtenue",  check:d=>d.completedCertifs>=1},
+  {id:"proj5",    icon:"💼", name:"5 projets actifs",    desc:"5 projets en cours ou terminés",  check:d=>d.totalProjects>=5},
+];
+
+const DAYS   = ["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"];
+const MONTHS = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+const STATUS_MAP = {
+  todo:      {label:"À faire",  cls:"b-todo"},
+  inprogress:{label:"En cours", cls:"b-inprogress"},
+  done:      {label:"Terminé",  cls:"b-done"},
+  paused:    {label:"En pause", cls:"b-paused"},
+};
+
+// ════════════════════════════════════════
+// STORAGE
+// ════════════════════════════════════════
+const KEY = "aaziz_v5";
+const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e) { return {}; } };
+const save = d => localStorage.setItem(KEY, JSON.stringify(d));
+const p2 = n => String(n).padStart(2,'0');
+const todayKey = () => { const d=new Date(); return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`; };
+
+function getTasks() {
+  const d=load(); if(!d._tasks){d._tasks=SEED_TASKS.map(t=>({...t}));save(d);} return d._tasks;
+}
+function saveTasks(l){const d=load();d._tasks=l;save(d);}
+function getCertifs(){const d=load();if(!d._cf){d._cf=SEED_CERTIFS.map(c=>({...c}));save(d);}return d._cf;}
+function saveCertifs(l){const d=load();d._cf=l;save(d);}
+function getProjects(){return load()._pj||[];}
+function saveProjects(l){const d=load();d._pj=l;save(d);}
+const getDayState = k => (load()[k]||{});
+function setTaskState(id,done){const d=load();const k=todayKey();if(!d[k])d[k]={};d[k][id]=done;save(d);}
+const getPin=()=>localStorage.getItem('aaziz_pin')||'1234';
+const savePin=p=>localStorage.setItem('aaziz_pin',p);
+
+// Notifications enabled per task
+function getNotifSettings(){try{return JSON.parse(localStorage.getItem('aaziz_notifs'))||{};}catch(e){return{};}}
+function saveNotifSettings(d){localStorage.setItem('aaziz_notifs',JSON.stringify(d));}
+
+// ════════════════════════════════════════
+// HELPERS
+// ════════════════════════════════════════
+const pct=(a,b)=>b?Math.round(a/b*100):0;
+function fmtDur(mins){
+  if(!mins)return'—';const m=parseInt(mins);
+  if(m<60)return m+'min';
+  const h=Math.floor(m/60),r=m%60;
+  return r?`${h}h${p2(r)}`:`${h}h`;
+}
+function fmtFCFA(n){
+  if(!n&&n!==0)return'—';
+  return Number(n).toLocaleString('fr-FR')+' FCFA';
+}
+function getDayPct(key){
+  const day=getDayState(key);const tasks=getTasks();
+  return pct(tasks.filter(t=>day[t.id]).length,tasks.length);
+}
+function calcStreak(){
+  let s=0;const d=new Date();
+  for(let i=0;i<365;i++){
+    const k=`${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;
+    if(getDayPct(k)>0){s++;d.setDate(d.getDate()-1);}else break;
+  }
+  return s;
+}
+function heatBg(p){
+  if(!p)return"var(--bg2)";if(p<25)return"rgba(0,255,180,.07)";
+  if(p<50)return"rgba(0,255,180,.17)";if(p<75)return"rgba(0,255,180,.32)";
+  return"rgba(0,255,180,.52)";
+}
+function dlText(dl){
+  if(!dl)return'';
+  const diff=Math.round((new Date(dl)-new Date())/86400000);
+  if(diff<0)return`⚠ Dépassée ${Math.abs(diff)}j`;
+  if(diff===0)return'🔥 Aujourd\'hui !';
+  if(diff<=3)return`⚡ ${diff}j restants`;
+  return`📅 ${new Date(dl).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})}`;
+}
+function isUrgent(dl){return dl&&Math.round((new Date(dl)-new Date())/86400000)<=3;}
+
+// Stats for badges
+function calcBadgeData(){
+  const data=load();
+  const tasks=getTasks();
+  const now=new Date();
+  const ms=`${now.getFullYear()}-${p2(now.getMonth()+1)}`;
+  let totalTasks=0,monthMins=0;
+  Object.keys(data).filter(k=>!k.startsWith('_')).forEach(k=>{
+    const day=data[k];
+    tasks.forEach(t=>{if(day[t.id]){totalTasks++;if(k.startsWith(ms))monthMins+=(t.hours||60);}});
+  });
+  const completedCertifs=getCertifs().filter(c=>c.completed).length;
+  const totalProjects=getProjects().length;
+  return{streak:calcStreak(),totalTasks,monthMins,completedCertifs,totalProjects};
+}
+
+// ════════════════════════════════════════
+// CLOCK
+// ════════════════════════════════════════
+function tickClock(){
+  const n=new Date();
+  document.getElementById('clk-h').textContent=p2(n.getHours());
+  document.getElementById('clk-m').textContent=p2(n.getMinutes());
+  document.getElementById('clk-s').textContent=p2(n.getSeconds());
+  document.getElementById('clk-date').textContent=
+    n.toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}).toUpperCase();
+  document.getElementById('clk-day').textContent=DAYS[n.getDay()]+' · '+MONTHS[n.getMonth()].substring(0,3).toUpperCase();
+}
+setInterval(tickClock,1000);tickClock();
+
+// ════════════════════════════════════════
+// THEME
+// ════════════════════════════════════════
+function toggleTheme(){
+  const html=document.documentElement;
+  const isDark=html.getAttribute('data-theme')==='dark';
+  html.setAttribute('data-theme',isDark?'light':'dark');
+  document.getElementById('theme-lbl').textContent=isDark?'☀️':'🌙';
+  localStorage.setItem('aaziz_theme',isDark?'light':'dark');
+}
+function loadTheme(){
+  const t=localStorage.getItem('aaziz_theme')||'dark';
+  document.documentElement.setAttribute('data-theme',t);
+  document.getElementById('theme-lbl').textContent=t==='dark'?'🌙':'☀️';
+}
+loadTheme();
+
+// ════════════════════════════════════════
+// PAGE NAVIGATION
+// ════════════════════════════════════════
+function switchPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  event.target.closest('.nav-tab').classList.add('active');
+  if(id==='perf') renderPerf();
+  if(id==='finance') renderFinance();
+}
+
+// ════════════════════════════════════════
+// PIN GATE
+// ════════════════════════════════════════
+let _pi='',_cb=null;
+function pinGate(cb){
+  _pi='';_cb=cb;updPinDots();
+  document.getElementById('pin-err').textContent='';
+  document.getElementById('pin-gate').classList.add('open');
+}
+function cancelPin(){_pi='';_cb=null;document.getElementById('pin-gate').classList.remove('open');}
+function pk(k){if(_pi.length>=4)return;_pi+=k;updPinDots();if(_pi.length===4)setTimeout(chkPin,100);}
+function pdel(){_pi=_pi.slice(0,-1);updPinDots();document.getElementById('pin-err').textContent='';}
+function updPinDots(err){for(let i=0;i<4;i++){const d=document.getElementById('pd'+i);d.className='pin-dot';if(err)d.classList.add('error');else if(i<_pi.length)d.classList.add('filled');}}
+function chkPin(){
+  if(_pi===getPin()){
+    document.getElementById('pin-gate').classList.remove('open');
+    const cb=_cb;_pi='';_cb=null;if(cb)cb();
+  }else{
+    updPinDots(true);document.getElementById('pin-err').textContent='⚠ PIN incorrect';
+    setTimeout(()=>{_pi='';updPinDots();document.getElementById('pin-err').textContent='';},800);
+  }
+}
+function changePin(){
+  const nw=document.getElementById('np-new').value;
+  const cf=document.getElementById('np-conf').value;
+  if(!/^\d{4}$/.test(nw)){toast('⚠ PIN = 4 chiffres');return;}
+  if(nw!==cf){toast('⚠ PINs différents');return;}
+  savePin(nw);closeModal('m-change-pin');
+  document.getElementById('np-new').value='';document.getElementById('np-conf').value='';
+  toast('✓ PIN changé !');
+}
+
+// ════════════════════════════════════════
+// TOAST
+// ════════════════════════════════════════
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2800);
+}
+
+// ════════════════════════════════════════
+// NOTIFICATIONS
+// ════════════════════════════════════════
+let _notifChecked={};
+function requestNotifPerm(){
+  if(!('Notification' in window)){toast('⚠ Notifications non supportées');return;}
+  Notification.requestPermission().then(p=>{
+    if(p==='granted'){toast('✓ Notifications activées !');closeModal('m-notif-set');}
+    else{document.getElementById('notif-perm-banner').style.display='block';}
+  });
+}
+function renderNotifList(){
+  const list=document.getElementById('notif-list');list.innerHTML='';
+  const settings=getNotifSettings();
+  getTasks().forEach(t=>{
+    if(!t.time||t.time==='—')return;
+    const on=settings[t.id]!==false;
+    const row=document.createElement('div');row.className='notif-row';
+    row.innerHTML=`
+      <div class="nr-time">${t.time}</div>
+      <div class="nr-label">${t.icon} ${t.name}</div>
+      <button class="toggle-sw ${on?'on':'off'}" onclick="toggleNotif('${t.id}',this)"></button>
+    `;
+    list.appendChild(row);
+  });
+}
+function toggleNotif(id,btn){
+  const settings=getNotifSettings();
+  const on=btn.classList.contains('on');
+  settings[id]=!on;saveNotifSettings(settings);
+  btn.className='toggle-sw '+(!on?'on':'off');
+}
+function checkNotifications(){
+  if(Notification.permission!=='granted')return;
+  const now=new Date();
+  const hhmm=`${p2(now.getHours())}:${p2(now.getMinutes())}`;
+  const settings=getNotifSettings();
+  getTasks().forEach(t=>{
+    if(!t.time||t.time==='—')return;
+    if(settings[t.id]===false)return;
+    const taskTime=t.time.split('–')[0].split('–')[0].trim();
+    if(taskTime===hhmm&&!_notifChecked[t.id+'_'+hhmm]){
+      _notifChecked[t.id+'_'+hhmm]=true;
+      const msg=`Temps de commencer ${t.name} ${t.icon}`;
+      // In-app banner
+      showNotifBanner('⏰ Rappel', msg);
+      // Browser notification
+      try{new Notification('Dashboard Abdoul Aziz',{body:msg,icon:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">'+t.icon+'</text></svg>'});}catch(e){}
+    }
+  });
+}
+setInterval(checkNotifications,30000);checkNotifications();
+
+// ════════════════════════════════════════
+// PUSH / SERVICE WORKER
+// ════════════════════════════════════════
+function setupPush(){
+  if(!('serviceWorker' in navigator))return;
+  navigator.serviceWorker.register('sw.js')
+    .then(reg=>console.log('SW enregistré',reg))
+    .catch(console.error);
+}
+
+function requestPushPermission(){
+  if(!('Notification' in window)){toast('⚠ Notifications non supportées');return;}
+  if(!firebase.messaging){toast('⚠ Firebase Messaging non initialisé');return;}
+  Notification.requestPermission().then(p=>{
+    if(p==='granted'){
+      const messaging=firebase.messaging();
+      const cfg=JSON.parse(localStorage.getItem('aaziz_fb')||'{}');
+      messaging.getToken({vapidKey:cfg.vapidKey||undefined})
+        .then(token=>{
+          console.log('FCM token',token);
+          localStorage.setItem('aaziz_push_token',token);
+          toast('✓ Push activé !');
+        })
+        .catch(e=>toast('⚠ Erreur token: '+e.message));
+    } else {
+      document.getElementById('notif-perm-banner').style.display='block';
+    }
+  });
+}
+
+function showNotifBanner(title,msg){
+  document.getElementById('nb-title').textContent=title;
+  document.getElementById('nb-msg').textContent=msg;
+  const b=document.getElementById('notif-banner');
+  b.classList.add('show');
+  clearTimeout(b._t);b._t=setTimeout(()=>b.classList.remove('show'),8000);
+}
+function hideNotifBanner(){document.getElementById('notif-banner').classList.remove('show');}
+
+// ════════════════════════════════════════
+// HEADER
+// ════════════════════════════════════════
+function renderHeader(){
+  const d=new Date();
+  document.getElementById('hdate').textContent=
+    d.toLocaleDateString('fr-FR',{weekday:'long',year:'numeric',month:'long',day:'numeric'}).toUpperCase();
+  const idx=(d.getDate()+d.getMonth())%QUOTES.length;
+  document.getElementById('hquote').textContent=`" ${QUOTES[idx]} "`;
+}
+
+// ════════════════════════════════════════
+// STATS
+// ════════════════════════════════════════
+function renderStats(){
+  const tasks=getTasks();const state=getDayState(todayKey());
+  const done=tasks.filter(t=>state[t.id]).length;const p=pct(done,tasks.length);
+  const circ=182;
+  document.getElementById('ring-c').style.strokeDashoffset=circ-(circ*p/100);
+  document.getElementById('ring-pct').textContent=p+'%';
+  document.getElementById('s-done').textContent=done;
+  document.getElementById('s-done-sub').textContent=`sur ${tasks.length}`;
+  const streak=calcStreak();
+  document.getElementById('s-streak').textContent=streak;
+  document.getElementById('s-streak-sub').textContent=streak>5?'🔥 En feu !':streak>1?'👍 Continue !':'⭕ Démarre !';
+  const now=new Date();const ms=`${now.getFullYear()}-${p2(now.getMonth()+1)}`;
+  const data=load();
+  const md=Object.keys(data).filter(k=>!k.startsWith('_')&&k.startsWith(ms)&&getDayPct(k)>0).length;
+  document.getElementById('s-month').textContent=md;
+  document.getElementById('s-month-sub').textContent=MONTHS[now.getMonth()];
+}
+
+// ════════════════════════════════════════
+// BADGES
+// ════════════════════════════════════════
+function renderBadges(){
+  const container=document.getElementById('badges-row');container.innerHTML='';
+  const data=calcBadgeData();
+  BADGE_DEFS.forEach(b=>{
+    const earned=b.check(data);
+    const div=document.createElement('div');div.className=`badge-item${earned?' earned':''}`;
+    let prog='';
+    if(b.id==='streak3')prog=`${Math.min(data.streak,3)}/3`;
+    if(b.id==='streak7')prog=`${Math.min(data.streak,7)}/7`;
+    if(b.id==='streak30')prog=`${Math.min(data.streak,30)}/30`;
+    if(b.id==='tasks30')prog=`${Math.min(data.totalTasks,30)}/30`;
+    if(b.id==='tasks100')prog=`${Math.min(data.totalTasks,100)}/100`;
+    if(b.id==='hours10')prog=`${fmtDur(Math.min(data.monthMins,600))}/${fmtDur(600)}`;
+    if(b.id==='hours100')prog=`${fmtDur(Math.min(data.monthMins,6000))}/${fmtDur(6000)}`;
+    div.innerHTML=`
+      <div class="bi-icon">${b.icon}</div>
+      <div class="bi-info">
+        <div class="bi-name">${b.name}</div>
+        <div class="bi-desc">${b.desc}</div>
+        ${prog?`<div class="bi-prog">${prog}</div>`:''}
+      </div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+// ════════════════════════════════════════
+// TASKS
+// ════════════════════════════════════════
+function renderTasks(){
+  const grid=document.getElementById('tasks-grid');grid.innerHTML='';
+  const state=getDayState(todayKey());
+  getTasks().forEach(task=>{
+    const done=!!state[task.id];
+    const div=document.createElement('div');div.className=`task-item${done?' done':''}`;
+    div.innerHTML=`
+      <div class="tcheck" onclick="toggleTask('${task.id}')">${done?'✓':''}</div>
+      <div class="ttime">${task.time||'—'}</div>
+      <div class="tbar" style="background:${task.color};box-shadow:0 0 4px ${task.color}50"></div>
+      <div class="tinfo" onclick="toggleTask('${task.id}')">
+        <div class="tname">${task.icon||'📌'} ${task.name}</div>
+        <div class="tdesc">${task.desc||''}</div>
+      </div>
+      <div class="thours" style="color:${task.color};border-color:${task.color}40;background:${task.color}10">${fmtDur(task.hours)}</div>
+      <div class="task-acts">
+        <div class="tact tact-edit" onclick="pinGate(()=>openEditTask('${task.id}'))" title="Modifier">✏</div>
+        <div class="tact tact-del" onclick="pinGate(()=>deleteTask('${task.id}'))" title="Supprimer">✕</div>
+      </div>
+    `;
+    grid.appendChild(div);
+  });
+}
+function toggleTask(id){
+  const state=getDayState(todayKey());const done=!state[id];
+  setTaskState(id,done);renderAll();
+  if(done){const t=getTasks().find(x=>x.id===id);if(t)toast(`✓ ${t.name} — Bien joué Abdoul Aziz ! 💪`);}
+}
+function openAddTask(){
+  document.getElementById('mt-title').textContent='+ Nouvelle tâche';
+  document.getElementById('mt-id').value='';
+  ['mt-name','mt-desc','mt-time'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('mt-hours').value='60';
+  document.getElementById('mt-color').value='#00ffb3';
+  document.getElementById('mt-icon').value='📌';
+  openModal('m-task');
+}
+function openEditTask(id){
+  const t=getTasks().find(x=>x.id===id);if(!t)return;
+  document.getElementById('mt-title').textContent='✏ Modifier la tâche';
+  document.getElementById('mt-id').value=id;
+  document.getElementById('mt-name').value=t.name;
+  document.getElementById('mt-desc').value=t.desc||'';
+  document.getElementById('mt-time').value=t.time||'';
+  document.getElementById('mt-hours').value=t.hours||60;
+  document.getElementById('mt-color').value=t.color||'#00ffb3';
+  document.getElementById('mt-icon').value=t.icon||'📌';
+  openModal('m-task');
+}
+function saveTask(){
+  const name=document.getElementById('mt-name').value.trim();
+  if(!name){toast('⚠ Nom requis !');return;}
+  const id=document.getElementById('mt-id').value||('t_'+Date.now());
+  const task={id,name,
+    desc:document.getElementById('mt-desc').value.trim(),
+    time:document.getElementById('mt-time').value.trim()||'—',
+    hours:parseInt(document.getElementById('mt-hours').value)||60,
+    color:document.getElementById('mt-color').value,
+    icon:document.getElementById('mt-icon').value.trim()||'📌',
+  };
+  const list=getTasks();const idx=list.findIndex(t=>t.id===id);
+  if(idx>=0)list[idx]=task;else list.push(task);
+  saveTasks(list);closeModal('m-task');renderAll();
+  toast(idx>=0?`✓ "${name}" modifiée !`:`✓ "${name}" ajoutée !`);
+}
+function deleteTask(id){
+  const t=getTasks().find(x=>x.id===id);
+  if(!confirm(`Supprimer "${t?.name||id}" ?`))return;
+  saveTasks(getTasks().filter(x=>x.id!==id));
+  const data=load();
+  Object.keys(data).filter(k=>!k.startsWith('_')).forEach(k=>{if(data[k][id])delete data[k][id];});
+  save(data);renderAll();toast('🗑 Supprimée');
+}
+
+// ════════════════════════════════════════
+// CERTIFS
+// ════════════════════════════════════════
+function renderCertifCards(){
+  const container=document.getElementById('certif-cards');container.innerHTML='';
+  const data=load();
+  getCertifs().forEach(c=>{
+    const doneDays=Object.keys(data).filter(k=>!k.startsWith('_')&&data[k][c.taskId]).length;
+    const p=Math.min(100,pct(doneDays,c.months*26));
+    const div=document.createElement('div');
+    div.className=`certif-card${c.completed?' completed':''}`;
+    div.style.borderColor=`${c.color}22`;
+    div.innerHTML=`
+      <div class="cicon">${c.icon}</div>
+      <div class="cname" style="color:${c.color}">${c.name}</div>
+      <div class="cdur">${c.months} mois${c.platform?` · ${c.platform}`:''}</div>
+      <div class="cpbar"><div class="cpfill" style="width:${p}%;background:${c.color}"></div></div>
+      <div class="cplabel"><span style="color:${c.color};font-weight:700">${p}%</span><span>${doneDays} sessions</span></div>
+    `;
+    container.appendChild(div);
+  });
+}
+function openManageCertif(){renderCmList();openModal('m-certif');}
+function renderCmList(){
+  const list=document.getElementById('cm-list');list.innerHTML='';
+  getCertifs().forEach((c,i)=>{
+    const div=document.createElement('div');div.className='cm-item';
+    div.innerHTML=`
+      <span style="font-size:16px">${c.icon}</span>
+      <div class="cm-info">
+        <div class="cm-name" style="color:${c.color}">${c.name}</div>
+        <div class="cm-sub">${c.months} mois${c.platform?` · ${c.platform}`:''}${c.completed?' · ✓ Terminée':''}</div>
+      </div>
+      <div class="cm-btns">
+        <button class="btn btn-sm ${c.completed?'btn-orange':'btn-green'}" onclick="toggleCertifDone(${i})">${c.completed?'↺':'✓'}</button>
+        <button class="btn btn-red btn-sm" onclick="deleteCertif(${i})">✕</button>
+      </div>
+    `;
+    list.appendChild(div);
+  });
+}
+function toggleCertifDone(i){
+  const list=getCertifs();list[i].completed=!list[i].completed;saveCertifs(list);
+  renderCmList();renderCertifCards();
+  toast(list[i].completed?`🎉 "${list[i].name}" terminée ! Félicitations !`:'↺ Remise en cours');
+}
+function deleteCertif(i){
+  const list=getCertifs();
+  if(!confirm(`Supprimer "${list[i].name}" ?`))return;
+  list.splice(i,1);saveCertifs(list);renderCmList();renderCertifCards();toast('🗑 Supprimée');
+}
+function addCertif(){
+  const name=document.getElementById('nc-name').value.trim();
+  if(!name){toast('⚠ Nom requis !');return;}
+  const id='cf_'+Date.now();
+  const c={id,name,
+    icon:document.getElementById('nc-icon').value.trim()||'📚',
+    months:parseInt(document.getElementById('nc-months').value)||3,
+    color:document.getElementById('nc-color').value,
+    platform:document.getElementById('nc-platform').value.trim(),
+    taskId:id,completed:false};
+  const clist=getCertifs();clist.push(c);saveCertifs(clist);
+  const tlist=getTasks();
+  tlist.push({id,name:c.name,desc:`Certif — ${c.platform||''}`,time:'—',hours:60,color:c.color,icon:c.icon});
+  saveTasks(tlist);
+  document.getElementById('nc-name').value='';
+  renderCmList();renderCertifCards();renderTasks();toast(`✓ "${name}" ajoutée !`);
+}
+
+// ════════════════════════════════════════
+// PROJECTS
+// ════════════════════════════════════════
+function renderProjects(){
+  const grid=document.getElementById('projects-grid');grid.innerHTML='';
+  const projects=getProjects();
+  if(!projects.length){
+    grid.innerHTML=`<div style="text-align:center;padding:24px;color:var(--muted);font-size:10px;background:var(--bg2);border:1px dashed var(--border2);border-radius:12px;">
+      Aucun projet. <strong style="color:var(--blue)">+ Nouveau</strong> pour commencer.
+    </div>`;return;
+  }
+  projects.forEach((pj,i)=>{
+    const st=STATUS_MAP[pj.status]||STATUS_MAP.todo;
+    const tasks=pj.tasks||[];const dtDone=tasks.filter(t=>t.done).length;
+    const progPct=tasks.length?pct(dtDone,tasks.length):0;
+    const urgent=isUrgent(pj.deadline)&&pj.status!=='done';
+    // Finance
+    const invest=parseFloat(pj.invest)||0;
+    const revenue=parseFloat(pj.revenue)||0;
+    const expenses=parseFloat(pj.expenses)||0;
+    const profit=revenue-invest-expenses;
+    const hasFinance=invest||revenue||expenses;
+    const div=document.createElement('div');
+    div.className='project-card';div.style.borderLeftColor=pj.color||'var(--blue)';
+    div.innerHTML=`
+      <div class="pc-top">
+        <div class="pc-icon">${pj.icon||'💼'}</div>
+        <div class="pc-main">
+          <div class="pc-title">${pj.name}</div>
+          ${pj.client?`<div class="pc-client">🏢 ${pj.client}</div>`:''}
+          ${pj.desc?`<div class="pc-desc">${pj.desc.replace(/\n/g,'<br>')}</div>`:''}
+          <div class="pc-meta">
+            <span class="pbadge ${st.cls}">${st.label}</span>
+            ${pj.deadline?`<span class="pc-dl${urgent?' urgent':''}">${dlText(pj.deadline)}</span>`:''}
+          </div>
+        </div>
+      </div>
+      ${tasks.length?`
+        <div class="pc-prog">
+          <div class="pc-prog-bar"><div class="pc-prog-fill" style="width:${progPct}%;background:${pj.color||'var(--blue)'}"></div></div>
+          <div class="pc-prog-label"><span>Sous-tâches ${dtDone}/${tasks.length}</span><span style="color:${pj.color||'var(--blue)'};font-weight:700">${progPct}%</span></div>
+        </div>`:''}
+      ${hasFinance?`
+        <div class="pc-finance">
+          <div class="pf-item"><div class="pf-val" style="color:var(--orange)">${Number(invest).toLocaleString('fr-FR')}</div><div class="pf-key">Investi</div></div>
+          <div class="pf-item"><div class="pf-val" style="color:var(--green)">${Number(revenue).toLocaleString('fr-FR')}</div><div class="pf-key">Revenu</div></div>
+          <div class="pf-item"><div class="pf-val" style="color:${profit>=0?'var(--blue)':'var(--red)'}">${Number(profit).toLocaleString('fr-FR')}</div><div class="pf-key">Profit</div></div>
+        </div>`:''}
+      <div class="pc-subtasks">
+        <div class="pc-sub-title">Sous-tâches</div>
+        <div id="ptsub-${i}"></div>
+        <div class="pt-add-row">
+          <input type="text" id="pti-${i}" placeholder="Ajouter une sous-tâche..." maxlength="80"
+            onkeydown="if(event.key==='Enter')pinGate(()=>addPTask(${i}))">
+          <button class="btn btn-blue btn-sm" onclick="pinGate(()=>addPTask(${i}))">+</button>
+        </div>
+      </div>
+      <div class="pc-actions">
+        <button class="btn btn-blue btn-sm" onclick="pinGate(()=>openEditProject(${i}))">✏ Modifier</button>
+        <select class="btn btn-sm" style="border-color:rgba(255,255,255,.12);color:var(--text);padding:4px 7px;font-size:8px;"
+          onchange="if(this.value)pinGate(()=>{changeProjStatus(${i},this.value);this.value=''})">
+          <option value="">Statut...</option>
+          <option value="todo">⬜ À faire</option>
+          <option value="inprogress">🟡 En cours</option>
+          <option value="done">✅ Terminé</option>
+          <option value="paused">🔴 En pause</option>
+        </select>
+        <button class="btn btn-red btn-sm" onclick="pinGate(()=>deleteProject(${i}))">✕</button>
+      </div>
+    `;
+    grid.appendChild(div);renderPTasks(i);
+  });
+}
+function renderPTasks(i){
+  const pj=getProjects()[i];const c=document.getElementById('ptsub-'+i);if(!c)return;
+  c.innerHTML='';
+  (pj.tasks||[]).forEach((t,ti)=>{
+    const div=document.createElement('div');div.className=`ptask${t.done?' done':''}`;
+    div.innerHTML=`
+      <div class="ptcheck" onclick="togglePTask(${i},${ti})">${t.done?'✓':''}</div>
+      <div class="ptlabel">${t.label}</div>
+      <div class="ptdel" onclick="pinGate(()=>deletePTask(${i},${ti}))">✕</div>
+    `;
+    c.appendChild(div);
+  });
+}
+function addPTask(i){
+  const inp=document.getElementById('pti-'+i);const label=inp.value.trim();if(!label)return;
+  const pjs=getProjects();if(!pjs[i].tasks)pjs[i].tasks=[];
+  pjs[i].tasks.push({label,done:false});saveProjects(pjs);inp.value='';renderPTasks(i);renderProjects();
+}
+function togglePTask(i,ti){
+  const pjs=getProjects();pjs[i].tasks[ti].done=!pjs[i].tasks[ti].done;
+  saveProjects(pjs);renderPTasks(i);renderProjects();
+}
+function deletePTask(i,ti){
+  const pjs=getProjects();pjs[i].tasks.splice(ti,1);saveProjects(pjs);renderPTasks(i);
+}
+function changeProjStatus(i,val){
+  if(!val)return;const pjs=getProjects();pjs[i].status=val;saveProjects(pjs);renderProjects();toast('✓ Statut mis à jour');
+}
+function openAddProj(){
+  document.getElementById('mp-title').textContent='💼 Nouveau projet';
+  document.getElementById('mp-id').value='';
+  ['mp-name','mp-client','mp-desc','mp-dl','mp-invest','mp-revenue','mp-expenses'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('mp-status').value='todo';
+  document.getElementById('mp-icon').value='💼';
+  document.getElementById('mp-color').value='#40c8ff';
+  openModal('m-proj');
+}
+function openEditProject(i){
+  const pj=getProjects()[i];
+  document.getElementById('mp-title').textContent='✏ Modifier le projet';
+  document.getElementById('mp-id').value=i;
+  document.getElementById('mp-name').value=pj.name;
+  document.getElementById('mp-client').value=pj.client||'';
+  document.getElementById('mp-desc').value=pj.desc||'';
+  document.getElementById('mp-status').value=pj.status||'todo';
+  document.getElementById('mp-dl').value=pj.deadline||'';
+  document.getElementById('mp-icon').value=pj.icon||'💼';
+  document.getElementById('mp-color').value=pj.color||'#40c8ff';
+  document.getElementById('mp-invest').value=pj.invest||'';
+  document.getElementById('mp-revenue').value=pj.revenue||'';
+  document.getElementById('mp-expenses').value=pj.expenses||'';
+  openModal('m-proj');
+}
+function saveProject(){
+  const name=document.getElementById('mp-name').value.trim();if(!name){toast('⚠ Nom requis !');return;}
+  const idxStr=document.getElementById('mp-id').value;
+  const pj={name,
+    client:document.getElementById('mp-client').value.trim(),
+    desc:document.getElementById('mp-desc').value.trim(),
+    status:document.getElementById('mp-status').value,
+    deadline:document.getElementById('mp-dl').value,
+    icon:document.getElementById('mp-icon').value.trim()||'💼',
+    color:document.getElementById('mp-color').value,
+    invest:document.getElementById('mp-invest').value,
+    revenue:document.getElementById('mp-revenue').value,
+    expenses:document.getElementById('mp-expenses').value,
+  };
+  const list=getProjects();
+  if(idxStr!==''){const i=parseInt(idxStr);pj.tasks=list[i].tasks||[];pj.id=list[i].id;list[i]={...list[i],...pj};}
+  else{pj.tasks=[];pj.id='pj_'+Date.now();list.push(pj);}
+  saveProjects(list);closeModal('m-proj');renderProjects();
+  if(document.getElementById('page-finance').classList.contains('active'))renderFinance();
+  toast(`✓ "${name}" sauvegardé !`);
+}
+function deleteProject(i){
+  const pj=getProjects()[i];
+  if(!confirm(`Supprimer "${pj.name}" ?`))return;
+  const list=getProjects();list.splice(i,1);saveProjects(list);renderProjects();toast('🗑 Supprimé');
+}
+
+// ════════════════════════════════════════
+// WEEK HEATMAP
+// ════════════════════════════════════════
+function renderWeekHeatmap(){
+  const c=document.getElementById('week-heatmap');c.innerHTML='';
+  const today=new Date();const dow=today.getDay();
+  for(let i=0;i<7;i++){
+    const d=new Date(today);d.setDate(today.getDate()-dow+i);
+    const key=`${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;
+    const pv=getDayPct(key);const isT=key===todayKey();
+    const div=document.createElement('div');div.className=`hday${isT?' today':''}`;
+    div.style.background=heatBg(pv);
+    div.innerHTML=`<div class="dn">${DAYS[d.getDay()]}</div><div class="dp" style="color:${pv>0?'var(--green)':'var(--muted)'}">${pv}%</div><div class="db"><div class="dbf" style="width:${pv}%;background:var(--green)"></div></div>`;
+    c.appendChild(div);
+  }
+}
+
+// ════════════════════════════════════════
+// CALENDAR
+// ════════════════════════════════════════
+let calY=new Date().getFullYear(),calM=new Date().getMonth();
+function renderCalendar(){
+  document.getElementById('month-label').textContent=`${MONTHS[calM]} ${calY}`;
+  const grid=document.getElementById('cal-grid');grid.innerHTML='';
+  ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'].forEach(h=>{const el=document.createElement('div');el.className='cal-head';el.textContent=h;grid.appendChild(el);});
+  const first=new Date(calY,calM,1);const last=new Date(calY,calM+1,0);
+  const offset=(first.getDay()+6)%7;
+  for(let i=0;i<offset;i++){const e=document.createElement('div');e.className='cal-cell empty';grid.appendChild(e);}
+  const tStr=todayKey();
+  for(let day=1;day<=last.getDate();day++){
+    const key=`${calY}-${p2(calM+1)}-${p2(day)}`;
+    const pv=getDayPct(key);const isT=key===tStr;
+    const cell=document.createElement('div');
+    cell.className=`cal-cell${isT?' today-cell':''}`;
+    cell.style.background=heatBg(pv);cell.title=`${day}/${calM+1} — ${pv}%`;
+    cell.innerHTML=`<div class="cday" style="color:${pv>60&&document.documentElement.getAttribute('data-theme')==='dark'?'#fff':'var(--text)'}">${day}</div><div class="cdot" style="background:${pv>0?'var(--green)':'transparent'}"></div>${pv>0?`<div class="cpct">${pv}%</div>`:''}`;
+    if(pv>0){cell.onclick=()=>openDayModal(key,day);cell.style.cursor='pointer';}
+    grid.appendChild(cell);
+  }
+}
+function prevMonth(){calM--;if(calM<0){calM=11;calY--;}renderCalendar();}
+function nextMonth(){calM++;if(calM>11){calM=0;calY++;}renderCalendar();}
+
+// ════════════════════════════════════════
+// DAY MODAL
+// ════════════════════════════════════════
+function openDayModal(key,day){
+  const data=load();const dayData=data[key]||{};const tasks=getTasks();
+  const done=tasks.filter(t=>dayData[t.id]);
+  const mins=done.reduce((s,t)=>s+(t.hours||60),0);
+  document.getElementById('md-title').textContent=`${day} ${MONTHS[calM]} ${calY}`;
+  document.getElementById('md-sub').textContent=`${done.length}/${tasks.length} tâches · ${fmtDur(mins)}`;
+  const rows=document.getElementById('md-rows');rows.innerHTML='';
+  tasks.forEach(t=>{
+    const ok=!!dayData[t.id];const row=document.createElement('div');row.className='mrow';
+    row.innerHTML=`<div class="ml">${t.icon||'📌'} ${t.name}</div><div class="mv" style="color:${ok?'var(--green)':'var(--red)'}">${ok?'✓ Fait':'✗ Manqué'}</div>`;
+    rows.appendChild(row);
+  });
+  openModal('m-day');
+}
+
+// ════════════════════════════════════════
+// PERFORMANCE PAGE
+// ════════════════════════════════════════
+let _charts={};
+function renderPerf(){
+  const data=load();const tasks=getTasks();
+  const now=new Date();
+  // Last 8 weeks labels + data
+  const weeks=[];const taskCounts=[];const hourCounts=[];
+  for(let w=7;w>=0;w--){
+    const weekStart=new Date(now);
+    weekStart.setDate(now.getDate()-now.getDay()-w*7);
+    let wLabel=`S-${w}`;
+    let wTasks=0,wMins=0;
+    for(let d2=0;d2<7;d2++){
+      const dd=new Date(weekStart);dd.setDate(weekStart.getDate()+d2);
+      const key=`${dd.getFullYear()}-${p2(dd.getMonth()+1)}-${p2(dd.getDate())}`;
+      const day=data[key]||{};
+      tasks.forEach(t=>{if(day[t.id]){wTasks++;wMins+=(t.hours||60);}});
+    }
+    weeks.push(w===0?'Cette sem.':(`il y a ${w}sem`));
+    taskCounts.push(wTasks);hourCounts.push(+(wMins/60).toFixed(1));
+  }
+  // Last 6 months active days
+  const monthLabels=[];const monthDays=[];
+  for(let m=5;m>=0;m--){
+    const d=new Date(now.getFullYear(),now.getMonth()-m,1);
+    const ms=`${d.getFullYear()}-${p2(d.getMonth()+1)}`;
+    const active=Object.keys(data).filter(k=>!k.startsWith('_')&&k.startsWith(ms)&&getDayPct(k)>0).length;
+    monthLabels.push(MONTHS[d.getMonth()].substring(0,3));monthDays.push(active);
+  }
+  // Certifs progress
+  const certifs=getCertifs();
+  const certifLabels=certifs.map(c=>c.name.substring(0,12));
+  const certifPcts=certifs.map(c=>{
+    const doneDays=Object.keys(data).filter(k=>!k.startsWith('_')&&data[k][c.taskId]).length;
+    return Math.min(100,pct(doneDays,c.months*26));
+  });
+  const certifColors=certifs.map(c=>c.color);
+  // Chart defaults
+  const theme=document.documentElement.getAttribute('data-theme');
+  const gridColor=theme==='dark'?'rgba(255,255,255,0.05)':'rgba(0,0,0,0.06)';
+  const textColor=theme==='dark'?'#7a8fa4':'#64748b';
+  const chartDefaults={
+    plugins:{legend:{display:false}},
+    scales:{x:{grid:{color:gridColor},ticks:{color:textColor,font:{size:9}}},y:{grid:{color:gridColor},ticks:{color:textColor,font:{size:9}}}}
+  };
+  function mkChart(id,type,labels,datasets,extraOpts){
+    if(_charts[id]){_charts[id].destroy();}
+    const ctx=document.getElementById(id).getContext('2d');
+    _charts[id]=new Chart(ctx,{type,data:{labels,datasets},options:{...chartDefaults,...extraOpts}});
+  }
+  mkChart('chart-tasks','bar',weeks,[{data:taskCounts,backgroundColor:'rgba(0,255,180,.5)',borderColor:'#00ffb3',borderWidth:1,borderRadius:4}]);
+  mkChart('chart-hours','line',weeks,[{data:hourCounts,borderColor:'#40c8ff',backgroundColor:'rgba(64,200,255,.1)',tension:.4,fill:true,pointRadius:3,pointBackgroundColor:'#40c8ff'}]);
+  mkChart('chart-days','bar',monthLabels,[{data:monthDays,backgroundColor:'rgba(192,132,252,.5)',borderColor:'#c084fc',borderWidth:1,borderRadius:4}]);
+  mkChart('chart-certifs','bar',certifLabels,[{data:certifPcts,backgroundColor:certifColors.map(c=>c+'80'),borderColor:certifColors,borderWidth:1,borderRadius:4}],
+    {indexAxis:'y',scales:{x:{...chartDefaults.scales.x,max:100},y:{...chartDefaults.scales.y}}});
+
+  // Perf stats
+  const bd=calcBadgeData();
+  const totalHours=(bd.monthMins/60).toFixed(1);
+  const streak=bd.streak;
+  document.getElementById('perf-stats').innerHTML=`
+    <div class="stat-card"><div class="sv" style="color:var(--green)">${bd.totalTasks}</div><div class="sk">Total tâches</div></div>
+    <div class="stat-card"><div class="sv" style="color:var(--blue)">${totalHours}h</div><div class="sk">Heures ce mois</div></div>
+    <div class="stat-card"><div class="sv" style="color:var(--yellow)">${streak}</div><div class="sk">🔥 Streak actuel</div></div>
+    <div class="stat-card"><div class="sv" style="color:var(--purple)">${bd.completedCertifs}</div><div class="sk">Certifs terminées</div></div>
+  `;
+
+  // History table — last 14 days
+  const hist=document.getElementById('perf-history');hist.innerHTML='';
+  for(let i=0;i<14;i++){
+    const d=new Date(now);d.setDate(now.getDate()-i);
+    const key=`${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;
+    const pv=getDayPct(key);
+    const day=data[key]||{};
+    const mins=tasks.filter(t=>day[t.id]).reduce((s,t)=>s+(t.hours||60),0);
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:9px;padding:9px 12px;';
+    row.innerHTML=`
+      <div style="font-size:10px;color:var(--muted2);min-width:80px">${d.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'})}</div>
+      <div style="flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden">
+        <div style="width:${pv}%;height:100%;background:${pv>75?'var(--green)':pv>40?'var(--yellow)':'var(--red)'};border-radius:3px;transition:width .5s"></div>
+      </div>
+      <div style="font-size:10px;font-weight:700;min-width:34px;text-align:right;color:${pv>75?'var(--green)':pv>40?'var(--yellow)':'var(--muted)'}">${pv}%</div>
+      <div style="font-size:9px;color:var(--muted2);min-width:40px;text-align:right">${fmtDur(mins)}</div>
+    `;
+    hist.appendChild(row);
+  }
+}
+
+// ════════════════════════════════════════
+// FINANCE PAGE
+// ════════════════════════════════════════
+function renderFinance(){
+  const projects=getProjects();
+  let totalInvest=0,totalRevenue=0,totalExpenses=0;
+  projects.forEach(pj=>{
+    totalInvest+=parseFloat(pj.invest)||0;
+    totalRevenue+=parseFloat(pj.revenue)||0;
+    totalExpenses+=parseFloat(pj.expenses)||0;
+  });
+  const totalProfit=totalRevenue-totalInvest-totalExpenses;
+  document.getElementById('finance-summary').innerHTML=`
+    <div class="fin-card"><div class="fin-val" style="color:var(--orange)">${Number(totalInvest).toLocaleString('fr-FR')}</div><div class="fin-key">Total investi (FCFA)</div></div>
+    <div class="fin-card"><div class="fin-val" style="color:var(--green)">${Number(totalRevenue).toLocaleString('fr-FR')}</div><div class="fin-key">Total revenus (FCFA)</div></div>
+    <div class="fin-card"><div class="fin-val" style="color:var(--muted2)">${Number(totalExpenses).toLocaleString('fr-FR')}</div><div class="fin-key">Total dépenses (FCFA)</div></div>
+    <div class="fin-card"><div class="fin-val" style="color:${totalProfit>=0?'var(--blue)':'var(--red)'}">${Number(totalProfit).toLocaleString('fr-FR')}</div><div class="fin-key">Profit net (FCFA)</div></div>
+  `;
+  const list=document.getElementById('fin-list');list.innerHTML='';
+  if(!projects.length){
+    list.innerHTML='<div style="text-align:center;padding:24px;color:var(--muted);font-size:10px;background:var(--bg2);border:1px dashed var(--border2);border-radius:12px;">Aucun projet avec finances. Créez un projet et ajoutez des données financières.</div>';
+    return;
+  }
+  projects.forEach((pj,i)=>{
+    const invest=parseFloat(pj.invest)||0;
+    const revenue=parseFloat(pj.revenue)||0;
+    const expenses=parseFloat(pj.expenses)||0;
+    const profit=revenue-invest-expenses;
+    const roi=invest>0?((profit/invest)*100).toFixed(1):null;
+    const roiPct=invest>0?Math.min(100,Math.max(0,(revenue/(invest+expenses))*100)):0;
+    const div=document.createElement('div');
+    div.className='fin-item';div.style.borderLeftColor=pj.color||'var(--blue)';
+    div.innerHTML=`
+      <div class="fin-item-header">
+        <div><div class="fi-name">${pj.icon||'💼'} ${pj.name}</div>${pj.client?`<div class="fi-client">🏢 ${pj.client}</div>`:''}</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-blue btn-sm" onclick="pinGate(()=>openEditProject(${i}))">✏</button>
+          <button class="btn btn-red btn-sm" onclick="pinGate(()=>deleteProject(${i}))">✕</button>
+        </div>
+      </div>
+      <div class="fin-numbers">
+        <div class="fin-num"><div class="fn-val" style="color:var(--orange)">${Number(invest).toLocaleString('fr-FR')}</div><div class="fn-key">Investissement</div></div>
+        <div class="fin-num"><div class="fn-val" style="color:var(--green)">${Number(revenue).toLocaleString('fr-FR')}</div><div class="fn-key">Revenu</div></div>
+        <div class="fin-num"><div class="fn-val" style="color:${profit>=0?'var(--blue)':'var(--red)'}">${Number(profit).toLocaleString('fr-FR')}</div><div class="fn-key">Profit net</div></div>
+      </div>
+      ${invest>0?`
+      <div class="fin-bar">
+        <div class="fin-bar-track"><div class="fin-bar-fill" style="width:${roiPct}%;background:${profit>=0?'var(--green)':'var(--red)'}"></div></div>
+        <div class="fin-bar-label"><span>ROI: ${roi}%</span><span style="color:${profit>=0?'var(--green)':'var(--red)'}">${profit>=0?'✅ Rentable':'⚠ Déficit'}</span></div>
+      </div>`:''}
+    `;
+    list.appendChild(div);
+  });
+}
+
+// ════════════════════════════════════════
+// FIREBASE
+// ════════════════════════════════════════
+let _db=null;
+function loadFirebaseConfig(){
+  try{
+    const cfg=JSON.parse(localStorage.getItem('aaziz_fb')||'{}');
+    if(cfg.apiKey){
+      document.getElementById('fb-apikey').value=cfg.apiKey||'';
+      document.getElementById('fb-projectid').value=cfg.projectId||'';
+      document.getElementById('fb-appid').value=cfg.appId||'';
+      document.getElementById('fb-senderid').value=cfg.messagingSenderId||'';
+      document.getElementById('fb-vapid').value=cfg.vapidKey||'';
+    }
+    const tok = localStorage.getItem('aaziz_push_token');
+    if(tok) document.getElementById('push-status').textContent = '🎫 Token push enregistré';
+  }catch(e){}
+}
+function initFirebase(){
+  const apiKey=document.getElementById('fb-apikey').value.trim();
+  const projectId=document.getElementById('fb-projectid').value.trim();
+  const appId=document.getElementById('fb-appid').value.trim();
+  const senderId=document.getElementById('fb-senderid').value.trim();
+  const vapidKey=document.getElementById('fb-vapid').value.trim();
+  if(!apiKey||!projectId){toast('⚠ API Key et Project ID requis');return;}
+  try{
+    const cfg={
+      apiKey,
+      authDomain:`${projectId}.firebaseapp.com`,
+      projectId,
+      appId,
+      storageBucket:`${projectId}.appspot.com`
+    };
+    if(senderId)cfg.messagingSenderId=senderId;
+    if(vapidKey)cfg.vapidKey=vapidKey;
+    localStorage.setItem('aaziz_fb',JSON.stringify(cfg));
+    if(firebase.apps.length)firebase.apps.forEach(a=>a.delete());
+    firebase.initializeApp(cfg);
+    _db=firebase.firestore();
+    document.getElementById('fb-status').textContent='✓ Connecté à Firebase !';
+    document.getElementById('fb-status').style.color='var(--green)';
+    document.getElementById('sync-dot').className='sync-dot connected';
+    document.getElementById('sync-txt').textContent='Cloud';
+    toast('✓ Firebase connecté !');
+    setupPush();
+  }catch(e){
+    document.getElementById('fb-status').textContent='⚠ Erreur: '+e.message;
+    document.getElementById('fb-status').style.color='var(--red)';
+  }
+}
+async function syncToCloud(){
+  if(!_db){toast('⚠ Connectez Firebase d\'abord');return;}
+  try{
+    document.getElementById('sync-dot').className='sync-dot syncing';
+    document.getElementById('sync-txt').textContent='Sync...';
+    const data=load();
+    await _db.collection('dashboard').doc('abdoulaziz').set({data:JSON.stringify(data),updatedAt:new Date().toISOString()});
+    document.getElementById('sync-dot').className='sync-dot connected';
+    document.getElementById('sync-txt').textContent='Cloud';
+    toast('✓ Données sauvegardées sur Cloud !');
+  }catch(e){toast('⚠ Erreur sync: '+e.message);document.getElementById('sync-dot').className='sync-dot error';}
+}
+async function syncFromCloud(){
+  if(!_db){toast('⚠ Connectez Firebase d\'abord');return;}
+  if(!confirm('Restaurer depuis le Cloud ? Les données locales seront remplacées.'))return;
+  try{
+    document.getElementById('sync-dot').className='sync-dot syncing';
+    const doc=await _db.collection('dashboard').doc('abdoulaziz').get();
+    if(doc.exists){
+      const d=JSON.parse(doc.data().data);
+      localStorage.setItem(KEY,JSON.stringify(d));
+      renderAll();
+      document.getElementById('sync-dot').className='sync-dot connected';
+      toast('✓ Données restaurées depuis le Cloud !');
+    }else{toast('⚠ Aucune donnée dans le Cloud');}
+  }catch(e){toast('⚠ Erreur: '+e.message);document.getElementById('sync-dot').className='sync-dot error';}
+}
+// Auto-init Firebase if config exists
+function autoInitFirebase(){
+  try{
+    const cfg=JSON.parse(localStorage.getItem('aaziz_fb')||'{}');
+    if(cfg.apiKey&&cfg.projectId){
+      firebase.initializeApp(cfg);
+      _db=firebase.firestore();
+      document.getElementById('sync-dot').className='sync-dot connected';
+      document.getElementById('sync-txt').textContent='Cloud';
+      // register service worker if messaging possible
+      if(cfg.messagingSenderId){
+        setupPush();
+      }
+    }
+  }catch(e){}
+}
+
+// ════════════════════════════════════════
+// EXPORT EXCEL
+// ════════════════════════════════════════
+function buildRows(filterMonth){
+  const data=load();const tasks=getTasks();
+  const headers=['Date','Jour',...tasks.map(t=>t.name),'Faites','%','Durée'];
+  const rows=[headers];
+  Object.keys(data).filter(k=>!k.startsWith('_')).sort().forEach(k=>{
+    if(filterMonth&&!k.startsWith(filterMonth))return;
+    const day=data[k];const dc=tasks.filter(t=>day[t.id]).length;
+    const totalMins=tasks.filter(t=>day[t.id]).reduce((s,t)=>s+(t.hours||60),0);
+    const d=new Date(k);
+    rows.push([k,DAYS[d.getDay()],...tasks.map(t=>day[t.id]?'✓':'✗'),`${dc}/${tasks.length}`,`${pct(dc,tasks.length)}%`,fmtDur(totalMins)]);
+  });
+  return rows;
+}
+function buildProjRows(){
+  const rows=[['Projet','Client','Statut','Deadline','Description','Investi (FCFA)','Revenu (FCFA)','Dépenses (FCFA)','Profit (FCFA)','✓ Sous-tâches','Total']];
+  getProjects().forEach(pj=>{
+    const dt=(pj.tasks||[]).filter(t=>t.done).length;
+    const profit=(parseFloat(pj.revenue)||0)-(parseFloat(pj.invest)||0)-(parseFloat(pj.expenses)||0);
+    rows.push([pj.name,pj.client||'—',STATUS_MAP[pj.status]?.label||pj.status,pj.deadline||'—',(pj.desc||'').replace(/\n/g,' '),pj.invest||0,pj.revenue||0,pj.expenses||0,profit,dt,(pj.tasks||[]).length]);
+  });
+  return rows;
+}
+function exportExcel(){
+  const now=new Date();const ms=`${now.getFullYear()}-${p2(now.getMonth()+1)}`;
+  const rows=buildRows(ms);if(rows.length<=1){toast('⚠ Aucune donnée ce mois !');return;}
+  const tDays=rows.length-1;
+  const avgP=Math.round(rows.slice(1).reduce((s,r)=>s+parseInt(r[r.length-2]),0)/tDays);
+  const data=load();
+  const sumRows=[
+    ['📊 RAPPORT — ABDOUL AZIZ',''],['Mois',`${MONTHS[now.getMonth()]} ${now.getFullYear()}`],
+    ['Jours actifs',tDays],['Complétion moyenne',avgP+'%'],['Streak actuel',calcStreak()+'j'],['',''],
+    ['Certification','Sessions'],
+    ...getCertifs().map(c=>{
+      const cd=Object.keys(data).filter(k=>!k.startsWith('_')&&k.startsWith(ms)&&data[k][c.taskId]).length;
+      return[`${c.icon} ${c.name}`,`${cd}${c.completed?' — TERMINÉE ✓':''}`];
+    })
+  ];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sumRows),'Résumé');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'Journalier');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(buildProjRows()),'Projets & Finance');
+  XLSX.writeFile(wb,`abdoulaziz_${ms}.xlsx`);toast('✓ Excel téléchargé !');
+}
+function exportAllExcel(){
+  const data=load();
+  if(!Object.keys(data).filter(k=>!k.startsWith('_')).length){toast('⚠ Aucune donnée !');return;}
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(buildRows(null)),'Historique');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(buildProjRows()),'Projets & Finance');
+  XLSX.writeFile(wb,'abdoulaziz_historique.xlsx');toast('✓ Exporté !');
+}
+
+// ════════════════════════════════════════
+// RESET
+// ════════════════════════════════════════
+function resetDay(){
+  if(!confirm("Réinitialiser toutes les tâches d'aujourd'hui ?"))return;
+  const data=load();delete data[todayKey()];save(data);renderAll();toast('↺ Journée réinitialisée');
+}
+// MODAL HELPERS
+// ════════════════════════════════════════
+const openModal  = id => document.getElementById(id).classList.add('open');
+const closeModal = id => document.getElementById(id).classList.remove('open');
+function closeBg(e,id){if(e.target===document.getElementById(id))closeModal(id);}
+
+// ════════════════════════════════════════
+// RENDER ALL
+// ════════════════════════════════════════
+function renderAll(){
+  renderHeader();
+  renderStats();
+  renderBadges();
+  renderTasks();
+  renderProjects();
+  renderCertifCards();
+  renderWeekHeatmap();
+  renderCalendar();
+  renderNotifList();
+}
+
+// ════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════
+loadFirebaseConfig();
+autoInitFirebase();
+renderAll();
+
+</script>
+</body>
+</html>
