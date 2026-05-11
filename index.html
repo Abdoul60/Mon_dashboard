@@ -26,6 +26,7 @@
   <button class="nav-tab active" onclick="switchPage('dashboard')">🏠 Dashboard</button>
   <button class="nav-tab" onclick="switchPage('perf')">📈 Performances</button>
   <button class="nav-tab" onclick="switchPage('finance')">💰 Finance</button>
+  <button class="nav-tab" onclick="switchPage('budget')">💳 Budget</button>
   <div style="display:flex;align-items:center;gap:8px;margin-left:auto;padding:0 4px;">
     <span class="theme-label" id="theme-lbl">🌙</span>
     <div class="theme-toggle" onclick="toggleTheme()" title="Changer le thème"></div>
@@ -172,6 +173,73 @@
 
 </div><!-- /wrap -->
 
+<!-- ══════════════════════════════════════
+     PAGE: BUDGET
+══════════════════════════════════════ -->
+<div class="page" id="page-budget">
+  <div class="wrap" style="padding:0;">
+
+    <div class="st fi d1" style="margin-top:8px">💳 Budget quotidien</div>
+
+    <!-- SUMMARY CARDS -->
+    <div class="stats-row fi d2" id="budget-summary" style="margin-bottom:10px;"></div>
+
+    <!-- FORM -->
+    <div class="fi d3" style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius);padding:16px;margin-bottom:10px;">
+      <div class="sec-hdr"><div class="st">➕ Nouvelle entrée</div></div>
+      <div class="frow2" style="gap:8px;margin-bottom:8px;">
+        <div class="field">
+          <label>Type</label>
+          <select id="bgt-type">
+            <option value="revenu">💚 Revenu</option>
+            <option value="depense">🔴 Dépense</option>
+            <option value="dette">🟡 Dette</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Montant (FCFA)</label>
+          <input type="number" id="bgt-amount" placeholder="0" min="0">
+        </div>
+      </div>
+      <div class="frow2" style="gap:8px;margin-bottom:8px;">
+        <div class="field">
+          <label>Description *</label>
+          <input type="text" id="bgt-desc" placeholder="ex: Vente câble, Carburant..." maxlength="80">
+        </div>
+        <div class="field">
+          <label>Date</label>
+          <input type="date" id="bgt-date">
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:10px;">
+        <label>Catégorie</label>
+        <select id="bgt-cat">
+          <option value="Commerce">🛒 Commerce</option>
+          <option value="Sublimation">🖨 Sublimation</option>
+          <option value="Tech">💻 Tech / Cybersécurité</option>
+          <option value="Aviculture">🐓 Aviculture</option>
+          <option value="Personnel">👤 Personnel</option>
+          <option value="Autre">📦 Autre</option>
+        </select>
+      </div>
+      <button class="btn btn-green btn-full" onclick="saveBudgetEntry()">✓ Enregistrer</button>
+    </div>
+
+    <!-- HISTORY -->
+    <div class="fi d4" style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius);padding:16px;margin-bottom:18px;">
+      <div class="sec-hdr">
+        <div class="st">📋 Historique</div>
+        <div style="display:flex;gap:6px;">
+          <select id="bgt-filter-month" onchange="renderBudget()" style="font-size:10px;background:var(--bg2);color:var(--fg);border:1px solid var(--border2);border-radius:6px;padding:4px 8px;"></select>
+          <button class="btn btn-green btn-sm" onclick="exportBudgetExcel()">⬇ Excel</button>
+        </div>
+      </div>
+      <div id="budget-list" style="display:flex;flex-direction:column;gap:6px;margin-top:8px;"></div>
+    </div>
+
+  </div>
+</div>
+     
 <!-- ══════════════════════════════════════
      MODALS
 ══════════════════════════════════════ -->
@@ -577,6 +645,12 @@ function switchPage(id){
   event.target.closest('.nav-tab').classList.add('active');
   if(id==='perf') renderPerf();
   if(id==='finance') renderFinance();
+  if(id==='budget'){
+    // initialise date du jour
+    const d=new Date();
+    document.getElementById('bgt-date').value=todayKey();
+    renderBudget();
+  }
 }
 
 // ════════════════════════════════════════
@@ -1463,6 +1537,117 @@ loadFirebaseConfig();
 autoInitFirebase();
 renderAll();
 
+// ════════════════════════════════════════
+// BUDGET — DÉPENSES, REVENUS, DETTES
+// ════════════════════════════════════════
+function getBudget(){try{return JSON.parse(localStorage.getItem('aaziz_budget'))||[];}catch(e){return[];}}
+function saveBudget(l){localStorage.setItem('aaziz_budget',JSON.stringify(l));}
+
+function saveBudgetEntry(){
+  const type=document.getElementById('bgt-type').value;
+  const amount=parseFloat(document.getElementById('bgt-amount').value)||0;
+  const desc=document.getElementById('bgt-desc').value.trim();
+  const date=document.getElementById('bgt-date').value||todayKey();
+  const cat=document.getElementById('bgt-cat').value;
+  if(!desc){toast('⚠ Ajoute une description');return;}
+  if(!amount){toast('⚠ Montant requis');return;}
+  const list=getBudget();
+  list.unshift({id:Date.now(),type,amount,desc,date,cat});
+  saveBudget(list);
+  document.getElementById('bgt-amount').value='';
+  document.getElementById('bgt-desc').value='';
+  document.getElementById('bgt-date').value='';
+  toast('✓ Entrée enregistrée');
+  renderBudget();
+}
+
+function deleteBudgetEntry(id){
+  if(!confirm('Supprimer cette entrée ?'))return;
+  saveBudget(getBudget().filter(e=>e.id!==id));
+  renderBudget();
+  toast('↺ Supprimé');
+}
+
+function populateBudgetMonthFilter(){
+  const sel=document.getElementById('bgt-filter-month');
+  const months=[...new Set(getBudget().map(e=>e.date.substring(0,7)))].sort().reverse();
+  const now=new Date();
+  const cur=`${now.getFullYear()}-${p2(now.getMonth()+1)}`;
+  if(!months.includes(cur))months.unshift(cur);
+  sel.innerHTML='<option value="">Tous</option>'+months.map(m=>`<option value="${m}">${m}</option>`).join('');
+}
+
+function renderBudget(){
+  populateBudgetMonthFilter();
+  const filter=document.getElementById('bgt-filter-month').value;
+  const list=getBudget().filter(e=>!filter||e.date.startsWith(filter));
+
+  // Summary
+  const rev=list.filter(e=>e.type==='revenu').reduce((s,e)=>s+e.amount,0);
+  const dep=list.filter(e=>e.type==='depense').reduce((s,e)=>s+e.amount,0);
+  const det=list.filter(e=>e.type==='dette').reduce((s,e)=>s+e.amount,0);
+  const solde=rev-dep-det;
+  document.getElementById('budget-summary').innerHTML=`
+    <div class="stat-card hl"><div class="sv" style="color:var(--green)">${fmtFCFA(rev)}</div><div class="sk">💚 Revenus</div></div>
+    <div class="stat-card"><div class="sv" style="color:var(--red)">${fmtFCFA(dep)}</div><div class="sk">🔴 Dépenses</div></div>
+    <div class="stat-card"><div class="sv" style="color:var(--yellow)">${fmtFCFA(det)}</div><div class="sk">🟡 Dettes</div></div>
+    <div class="stat-card"><div class="sv" style="color:${solde>=0?'var(--green)':'var(--red)'}">${fmtFCFA(solde)}</div><div class="sk">📊 Solde net</div></div>
+  `;
+
+  // List
+  const container=document.getElementById('budget-list');
+  if(!list.length){container.innerHTML='<div style="color:var(--muted2);font-size:11px;text-align:center;padding:20px;">Aucune entrée pour cette période.</div>';return;}
+  const typeStyle={
+    revenu:{icon:'💚',color:'var(--green)'},
+    depense:{icon:'🔴',color:'var(--red)'},
+    dette:{icon:'🟡',color:'var(--yellow)'}
+  };
+  container.innerHTML=list.map(e=>{
+    const ts=typeStyle[e.type]||{icon:'📦',color:'var(--fg)'};
+    return`<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:10px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
+        <span style="font-size:18px;">${ts.icon}</span>
+        <div style="min-width:0;">
+          <div style="font-size:12px;font-weight:700;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${e.desc}</div>
+          <div style="font-size:9px;color:var(--muted2);margin-top:2px;">${e.date} · ${e.cat}</div>
+        </div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <div style="font-weight:700;color:${ts.color};font-size:13px;">${fmtFCFA(e.amount)}</div>
+        <button onclick="deleteBudgetEntry(${e.id})" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:10px;margin-top:2px;">🗑 Supprimer</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function exportBudgetExcel(){
+  const filter=document.getElementById('bgt-filter-month').value;
+  const list=getBudget().filter(e=>!filter||e.date.startsWith(filter));
+  if(!list.length){toast('⚠ Aucune donnée à exporter');return;}
+
+  const rev=list.filter(e=>e.type==='revenu').reduce((s,e)=>s+e.amount,0);
+  const dep=list.filter(e=>e.type==='depense').reduce((s,e)=>s+e.amount,0);
+  const det=list.filter(e=>e.type==='dette').reduce((s,e)=>s+e.amount,0);
+  const solde=rev-dep-det;
+
+  const headers=[['Date','Type','Description','Catégorie','Montant (FCFA)']];
+  const rows=list.map(e=>[e.date, e.type.charAt(0).toUpperCase()+e.type.slice(1), e.desc, e.cat, e.amount]);
+  const summary=[
+    ['','','','',''],
+    ['📊 RÉSUMÉ','','','',''],
+    ['Revenus','','','',rev],
+    ['Dépenses','','','',dep],
+    ['Dettes','','','',det],
+    ['Solde net','','','',solde],
+  ];
+
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([...headers,...rows,...summary]),'Budget');
+  const fname=filter?`budget_${filter}.xlsx`:'budget_historique.xlsx';
+  XLSX.writeFile(wb,fname);
+  toast('✓ Excel Budget téléchargé !');
+}
+     
 </script>
 </body>
 </html>
